@@ -1,0 +1,60 @@
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const cookieParser = require("cookie-parser");
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+// POST /staff-signin
+app.post("/staff-signin", async (req, res) => {
+  try {
+    const { staffId, password } = req.body;
+
+    // Validate staffId
+    if (!staffId) {
+      return res.status(400).json({
+        success: false,
+        error: "Staff ID is required",
+      });
+    }
+
+    // Validate password
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: "Password is required",
+      });
+    }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 12);
+    console.log("Hashed Password:", hashedPassword);
+
+    // Set cookie
+    res.cookie("staff_session", staffId, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 2700000, // 45 minutes
+      sameSite: "strict",
+    });
+
+    // Successful response
+    res.json({
+      success: true,
+      message: "Staff signed in successfully",
+      staffId,
+    });
+  } catch (error) {
+    console.error("Error during staff login:", error);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+});
+
+// Start server
+app.listen(3000, () => {
+  console.log("Server running on port 3000");
+});

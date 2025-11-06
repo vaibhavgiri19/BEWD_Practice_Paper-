@@ -1,0 +1,44 @@
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const cookieParser = require("cookie-parser");
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+app.post("/admin-login", async (req, res) => {
+  try {
+    const { adminUsername, password } = req.body;
+
+    if (!adminUsername) {
+      return res.status(400).json({ success: false, error: "Admin username is required" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ success: false, error: "Password is required" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    console.log("Hashed Password:", hashedPassword);
+
+    res.cookie("university_admin", adminUsername, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 1800000,
+      sameSite: "strict",
+    });
+
+    res.json({
+      success: true,
+      message: "Admin logged in successfully",
+      adminUsername,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+app.listen(6000, () => {
+  console.log("Server running on port 6000");
+});
