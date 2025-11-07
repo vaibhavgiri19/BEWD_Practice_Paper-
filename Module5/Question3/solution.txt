@@ -1,0 +1,56 @@
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+const JWT_SECRET = "hotel_secret_key";
+const admins = [];
+
+// Register admin
+app.post("/api/admin/register", async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password)
+    return res.status(400).json({ success: false, error: "All fields required" });
+
+  const hashed = await bcrypt.hash(password, 10);
+  admins.push({ name, email, password: hashed });
+  res.json({ success: true, message: "Admin registered successfully" });
+});
+
+// Login admin
+app.post("/api/admin/login", async (req, res) => {
+  const { email, password } = req.body;
+  const admin = admins.find((a) => a.email === email);
+  if (!admin) return res.status(401).json({ success: false, error: "Invalid credentials" });
+
+  const valid = await bcrypt.compare(password, admin.password);
+  if (!valid) return res.status(401).json({ success: false, error: "Invalid password" });
+
+  const token = jwt.sign({ email: admin.email }, JWT_SECRET, { expiresIn: "1h" });
+  res.cookie("token", token, { httpOnly: true, sameSite: "strict", secure: false, maxAge: 3600000 });
+  res.json({ success: true, message: "Admin logged in successfully", admin: admin.name });
+});
+
+// Protected route
+app.get("/api/bookings", (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(403).json({ success: false, error: "Access denied" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ success: true, message: "Access granted to booking data", user: decoded.email });
+  } catch {
+    res.status(403).json({ success: false, error: "Invalid or expired token" });
+  }
+});
+
+// Logout
+app.post("/api/admin/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true, message: "Logged out successfully" });
+});
+
+app.listen(3002, () => console.log("Hotel server running on port 3002"));

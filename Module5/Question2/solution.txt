@@ -1,0 +1,56 @@
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
+const app = express();
+app.use(express.json());
+app.use(cookieParser());
+
+const JWT_SECRET = "faculty_secret_key";
+const facultyList = [];
+
+// Register
+app.post("/api/faculty/register", async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password)
+    return res.status(400).json({ success: false, error: "All fields are required" });
+
+  const hashed = await bcrypt.hash(password, 10);
+  facultyList.push({ name, email, password: hashed });
+  res.json({ success: true, message: "Faculty registered successfully" });
+});
+
+// Login
+app.post("/api/faculty/login", async (req, res) => {
+  const { email, password } = req.body;
+  const user = facultyList.find((u) => u.email === email);
+  if (!user) return res.status(401).json({ success: false, error: "Invalid credentials" });
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ success: false, error: "Invalid password" });
+
+  const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: "2h" });
+  res.cookie("token", token, { httpOnly: true, sameSite: "strict", secure: false, maxAge: 7200000 });
+  res.json({ success: true, message: "Faculty login successful", faculty: user.name });
+});
+
+// Protected route
+app.get("/api/courses", (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(403).json({ success: false, error: "Access denied" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ success: true, message: "Access granted to course list", user: decoded.email });
+  } catch {
+    res.status(403).json({ success: false, error: "Invalid token" });
+  }
+});
+
+// Logout
+app.post("/api/faculty/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true, message: "Logged out successfully" });
+});
+
+app.listen(3001, () => console.log("University server running on port 3001"));
